@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#16202a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>School Dash</title>
+<link rel="manifest" href="manifest.json">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#10171e;color:#eef3f7;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+body{display:flex;justify-content:center;align-items:center;padding:12px}
+#app{width:min(900px,100%);background:#17212b;border:1px solid #344554;border-radius:18px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.28)}
+#hud{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 14px;background:#1c2833}
+#title{font-weight:800}.sub{font-size:12px;color:#aab6c1}
+#canvasWrap{background:#eaf0f4}
+canvas{width:100%;height:auto;display:block;touch-action:none}
+#controls{display:flex;gap:10px;justify-content:center;padding:12px;background:#17212b}
+button{min-height:48px;min-width:120px;border:1px solid #435463;border-radius:12px;background:#22303c;color:#fff;font-weight:800;font-size:16px}
+button:active{transform:translateY(1px)}
+#message{text-align:center;padding:0 12px 14px;color:#aab6c1;font-size:13px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div><div id="title">🏃 School Dash</div><div class="sub" id="levelName">PE Class</div></div>
+    <div id="score">0</div>
+  </div>
+  <div id="canvasWrap"><canvas id="game" width="900" height="420"></canvas></div>
+  <div id="controls">
+    <button id="jumpBtn" type="button">⬆ Jump</button>
+    <button id="duckBtn" type="button">⬇ Duck</button>
+    <button id="restartBtn" type="button">↻ Restart</button>
+  </div>
+  <div id="message">Tap the game to jump. Swipe down or hold Duck to duck.</div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const levelNameEl = document.getElementById('levelName');
+  const scoreEl = document.getElementById('score');
+
+  const levels = [
+    {
+      name:'PE Class', icon:'🏃', color:'#4a7c59', speed:5.8,
+      target:850, gap:[105,155], multiChance:0.02, airChance:0.00,
+      obstacles:[
+        {kind:'ground', glyph:'🏀', w:40,h:40},
+        {kind:'ground', glyph:'🟧', w:50,h:42},
+        {kind:'ground', glyph:'⚽', w:42,h:42}
+      ]
+    },
+    {
+      name:'Geography Class', icon:'🌍', color:'#3e6d8f', speed:6.5,
+      target:1000, gap:[86,125], multiChance:0.08, airChance:0.04,
+      obstacles:[
+        {kind:'ground', glyph:'🌎', w:44,h:44},
+        {kind:'ground', glyph:'⛰️', w:52,h:45},
+        {kind:'air', glyph:'✈️', w:54,h:34, high:true}
+      ]
+    },
+    {
+      name:'English Class', icon:'🇬🇧', color:'#7a557b', speed:7.1,
+      target:1150, gap:[72,106], multiChance:0.16, airChance:0.10,
+      obstacles:[
+        {kind:'ground', glyph:'📕', w:48,h:44},
+        {kind:'ground', glyph:'A', w:42,h:44},
+        {kind:'air', glyph:'?', w:48,h:34, high:true}
+      ]
+    },
+    {
+      name:'Biology Class', icon:'🧬', color:'#4b7f62', speed:7.7,
+      target:1300, gap:[62,94], multiChance:0.25, airChance:0.18,
+      obstacles:[
+        {kind:'ground', glyph:'🦠', w:48,h:43},
+        {kind:'ground', glyph:'🧫', w:46,h:45},
+        {kind:'air', glyph:'🧬', w:58,h:34, high:true}
+      ]
+    },
+    {
+      name:'Chemistry Class', icon:'⚗️', color:'#5f6e8b', speed:8.3,
+      target:1450, gap:[54,84], multiChance:0.36, airChance:0.27,
+      obstacles:[
+        {kind:'ground', glyph:'🧪', w:46,h:46},
+        {kind:'ground', glyph:'⚗️', w:46,h:48},
+        {kind:'air', glyph:'H₂O', w:58,h:34, high:true}
+      ]
+    },
+    {
+      name:'Physics Class', icon:'⚡', color:'#806b3f', speed:8.9,
+      target:1600, gap:[48,76], multiChance:0.48, airChance:0.36,
+      obstacles:[
+        {kind:'ground', glyph:'🧲', w:50,h:45},
+        {kind:'ground', glyph:'⚡', w:45,h:46},
+        {kind:'air', glyph:'↔', w:55,h:32, high:true}
+      ]
+    },
+    {
+      name:'Math Class', icon:'📐', color:'#6d5b87', speed:9.6,
+      target:1800, gap:[42,68], multiChance:0.60, airChance:0.48,
+      obstacles:[
+        {kind:'ground', glyph:'÷', w:46,h:46},
+        {kind:'ground', glyph:'√', w:46,h:46},
+        {kind:'ground', glyph:'π', w:48,h:46},
+        {kind:'air', glyph:'x²', w:54,h:32, high:true}
+      ]
+    },
+    {
+      name:'FINAL EXAM', icon:'📝', color:'#8a4242', speed:10.6,
+      target:2200, gap:[34,58], multiChance:0.78, airChance:0.62,
+      obstacles:[
+        {kind:'ground', glyph:'÷', w:44,h:44},
+        {kind:'ground', glyph:'🧪', w:45,h:45},
+        {kind:'ground', glyph:'📕', w:44,h:44},
+        {kind:'ground', glyph:'⚽', w:44,h:44},
+        {kind:'air', glyph:'⚡', w:52,h:32, high:true},
+        {kind:'air', glyph:'✈️', w:50,h:32, high:true}
+      ],
+      boss:true
+    }
+  ];
+
+  let levelIndex=0, levelTime=0, totalScore=0;
+  let running=true, gameOver=false, levelBanner=0;
+  let obstacles=[], spawnTimer=80, lastTime=0, distance=0;
+  let ducking=false, raf=0;
+
+  const player={x:120,y:318,w:38,h:58,vy:0,onGround:true};
+
+  function currentLevel(){ return levels[levelIndex]; }
+
+  function resetGame(){
+    cancelAnimationFrame(raf);
+    levelIndex=0; levelTime=0; totalScore=0; running=true; gameOver=false;
+    levelBanner=80; obstacles=[]; spawnTimer=60; ducking=false;
+    player.y=318; player.vy=0; player.onGround=true;
+    levelNameEl.textContent=currentLevel().icon+' '+currentLevel().name;
+    loop(0);
+  }
+
+  function jump(){
+    if(!running) return;
+    if(player.onGround){ player.vy=-14.2; player.onGround=false; }
+  }
+
+  function setDuck(v){
+    ducking=!!v && player.onGround;
+  }
+
+  function spawnObstacle(){
+    const level=currentLevel();
+    const list=level.obstacles;
+
+    // First 180px of every level is a gentle introduction.
+    const intro = levelTime < 12;
+
+    let chosen = list[Math.floor(Math.random()*list.length)];
+    if(intro) {
+      chosen = list[0];
+    } else if(Math.random() < level.airChance) {
+      const aerial = list.filter(o=>o.kind==='air');
+      if(aerial.length) chosen=aerial[Math.floor(Math.random()*aerial.length)];
+    } else {
+      const ground = list.filter(o=>o.kind==='ground');
+      if(ground.length) chosen=ground[Math.floor(Math.random()*ground.length)];
+    }
+
+    const isAir = chosen.kind === 'air';
+    const baseY = isAir ? 275 : 326;
+
+    obstacles.push({
+      x:canvas.width+20,
+      y:baseY,
+      w:chosen.w,h:chosen.h,
+      glyph:chosen.glyph,
+      air:isAir
+    });
+
+    // Later levels can create two-part patterns requiring an immediate
+    // second reaction. Keep them separated enough to remain fair.
+    if(!intro && Math.random() < level.multiChance) {
+      const secondAir = !isAir && Math.random() < 0.55;
+      const secondPool = secondAir
+        ? list.filter(o=>o.kind==='air')
+        : list.filter(o=>o.kind==='ground');
+      if(secondPool.length) {
+        const second = secondPool[Math.floor(Math.random()*secondPool.length)];
+        const secondY = secondAir ? 275 : 326;
+        obstacles.push({
+          x:canvas.width+20+Math.max(58, level.gap[0]*0.72),
+          y:secondY,
+          w:second.w,h:second.h,
+          glyph:second.glyph,
+          air:secondAir
+        });
+      }
+    }
+
+    // Very late levels occasionally create a triple rhythm:
+    // jump -> duck -> jump / duck -> jump -> jump.
+    if(levelIndex >= 5 && !intro && Math.random() < (levelIndex-4)*0.11) {
+      const thirdAir = Math.random() < 0.5;
+      const pool = thirdAir ? list.filter(o=>o.kind==='air') : list.filter(o=>o.kind==='ground');
+      if(pool.length) {
+        const third = pool[Math.floor(Math.random()*pool.length)];
+        obstacles.push({
+          x:canvas.width+20+Math.max(112, level.gap[0]*1.35),
+          y:thirdAir ? 275 : 326,
+          w:third.w,h:third.h,
+          glyph:third.glyph,
+          air:thirdAir
+        });
+      }
+    }
+
+    const minGap=level.gap[0], maxGap=level.gap[1];
+    spawnTimer=Math.floor(minGap+Math.random()*(maxGap-minGap));
+  }
+
+  function nextLevel(){
+    totalScore += 600;
+    if(levelIndex >= levels.length - 1){
+      running=false;
+      gameOver=false;
+      levelBanner=0;
+      return;
+    }
+    levelIndex++;
+    levelTime=0;
+    obstacles=[];
+    spawnTimer=Math.max(50, currentLevel().gap[0] + 10);
+    levelBanner=100;
+    player.y=318; player.vy=0; player.onGround=true;
+    ducking=false;
+    levelNameEl.textContent=currentLevel().icon+' '+currentLevel().name+' • 60.0s';
+  }
+
+  function lose(){
+    running=false;
+    gameOver=true;
+  }
+
+  function update(dt){
+    if(!running) return;
+    const level=currentLevel();
+    const factor=Math.min(1.8,dt/16.67);
+
+    // A level is completed ONLY by surviving a full 60 seconds.
+    levelTime += dt/1000;
+
+    spawnTimer-=factor;
+    if(spawnTimer<=0) spawnObstacle();
+
+    player.vy += 0.75*factor;
+    player.y += player.vy*factor;
+    if(player.y>=318){
+      player.y=318; player.vy=0; player.onGround=true;
+    } else {
+      player.onGround=false;
+    }
+
+    // Each level becomes slightly harder during its final 20 seconds.
+    const lateRamp=1+Math.min(0.18,Math.max(0,levelTime-40)/20*0.18);
+    const actualSpeed=level.speed*lateRamp;
+    for(const o of obstacles) o.x -= actualSpeed*factor;
+    obstacles=obstacles.filter(o=>o.x>-100);
+
+    const ph=ducking ? 33 : 58;
+    const py=ducking ? player.y+25 : player.y;
+    for(const o of obstacles){
+      const hit=
+        player.x+player.w-5 > o.x+5 &&
+        player.x+5 < o.x+o.w-5 &&
+        py+ph-4 > o.y+4 &&
+        py+4 < o.y+o.h-4;
+      if(hit){
+        lose();
+        return;
+      }
+    }
+
+    // Score rewards survival and successful class completion.
+    scoreEl.textContent='Score: '+Math.floor(totalScore+levelTime*10);
+
+    if(levelTime>=60){
+      levelTime=60;
+      nextLevel();
+      return;
+    }
+
+    const remaining=Math.max(0,60-levelTime);
+    levelNameEl.textContent=currentLevel().icon+' '+currentLevel().name+' • '+remaining.toFixed(1)+'s';
+  }
+
+  function drawBackground(level){
+    ctx.fillStyle='#eef3f5';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // classroom board / decorations
+    ctx.fillStyle='#dbe3e8';
+    ctx.fillRect(0,0,canvas.width,300);
+
+    ctx.fillStyle=level.color;
+    ctx.fillRect(25,45,260,92);
+    ctx.fillStyle='#ffffff';
+    ctx.font='700 26px system-ui';
+    ctx.fillText(level.name,45,82);
+    ctx.font='48px system-ui';
+    ctx.fillText(level.icon,220,122);
+
+    // simple background objects
+    ctx.fillStyle='#c8d2d9';
+    for(let i=0;i<5;i++){
+      const x=360+i*105;
+      ctx.fillRect(x,84,70,8);
+      ctx.fillRect(x,92,8,65);
+      ctx.fillRect(x+62,92,8,65);
+    }
+
+    ctx.fillStyle='#ccd5db';
+    ctx.fillRect(0,376,canvas.width,44);
+    ctx.fillStyle='#9aa8b2';
+    ctx.fillRect(0,374,canvas.width,3);
+  }
+
+  function drawPlayer(){
+    const ph=ducking?33:58;
+    const py=ducking ? player.y+25 : player.y;
+
+    // shadow
+    ctx.fillStyle='rgba(0,0,0,.12)';
+    ctx.beginPath();
+    ctx.ellipse(player.x+19,380,25,6,0,0,Math.PI*2);
+    ctx.fill();
+
+    // body
+    ctx.fillStyle='#243444';
+    ctx.fillRect(player.x,py+16,38,ph-16);
+
+    // face
+    ctx.fillStyle='#f2c8a4';
+    ctx.beginPath();
+    ctx.arc(player.x+19,py+12,13,0,Math.PI*2);
+    ctx.fill();
+
+    // hair
+    ctx.fillStyle='#27303a';
+    ctx.fillRect(player.x+7,py+1,24,6);
+
+    // eye
+    ctx.fillStyle='#111';
+    ctx.fillRect(player.x+24,py+10,4,4);
+
+    // backpack
+    ctx.fillStyle='#597389';
+    ctx.fillRect(player.x-7,py+22,8,22);
+
+    // legs
+    ctx.strokeStyle='#243444';
+    ctx.lineWidth=6;
+    if(!ducking){
+      const legOffset=Math.sin(Date.now()/90)*3;
+      ctx.beginPath();ctx.moveTo(player.x+10,py+45);ctx.lineTo(player.x+5,py+58+legOffset);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(player.x+27,py+45);ctx.lineTo(player.x+32,py+58-legOffset);ctx.stroke();
+    }
+  }
+
+  function drawObstacles(){
+    for(const o of obstacles){
+      ctx.fillStyle='rgba(255,255,255,.94)';
+      ctx.strokeStyle='#43525e';
+      ctx.lineWidth=3;
+      ctx.beginPath();
+      ctx.roundRect(o.x,o.y,o.w,o.h,9);
+      ctx.fill();ctx.stroke();
+
+      ctx.fillStyle='#23313d';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.font=o.glyph.length>2?'700 17px system-ui':'700 28px system-ui';
+      ctx.fillText(o.glyph,o.x+o.w/2,o.y+o.h/2);
+    }
+    ctx.textAlign='left';
+    ctx.textBaseline='alphabetic';
+  }
+
+  function drawBoss(){
+    if(!currentLevel().boss || levelTime<20) return;
+    const phase=Math.sin(Date.now()/180)*4;
+    ctx.fillStyle='#6b3232';
+    ctx.fillRect(735,110+phase,105,150);
+    ctx.fillStyle='#f0c5a2';
+    ctx.beginPath();ctx.arc(787,96+phase,34,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#222';
+    ctx.fillRect(758,68+phase,58,12);
+    ctx.fillStyle='#fff';
+    ctx.font='800 18px system-ui';
+    ctx.fillText('TEACHER',748,290);
+  }
+
+  function drawOverlay(){
+    if(levelBanner>0){
+      const level=currentLevel();
+      ctx.fillStyle='rgba(15,24,32,.78)';
+      ctx.fillRect(0,140,canvas.width,100);
+      ctx.fillStyle='#fff';
+      ctx.textAlign='center';
+      ctx.font='800 34px system-ui';
+      ctx.fillText(level.icon+' '+level.name,canvas.width/2,186);
+      ctx.font='600 16px system-ui';
+      ctx.fillText(levelIndex===0?'SURVIVE FOR 60 SECONDS':'SURVIVE THE NEXT 60 SECONDS',canvas.width/2,216);
+      ctx.textAlign='left';
+      levelBanner--;
+    }
+
+    if(gameOver){
+      ctx.fillStyle='rgba(10,16,21,.82)';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle='#fff';
+      ctx.textAlign='center';
+      ctx.font='800 40px system-ui';
+      ctx.fillText('DETENTION! 😵',canvas.width/2,170);
+      ctx.font='18px system-ui';
+      ctx.fillText('You hit an obstacle.',canvas.width/2,207);
+      ctx.font='700 20px system-ui';
+      ctx.fillText('Press Restart to begin again from PE Class.',canvas.width/2,245);
+      ctx.textAlign='left';
+    }
+
+    if(!running && !gameOver && levelIndex===levels.length-1 && levelTime>=60){
+      ctx.fillStyle='rgba(10,16,21,.86)';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle='#fff';
+      ctx.textAlign='center';
+      ctx.font='800 42px system-ui';
+      ctx.fillText('YOU SURVIVED SCHOOL! 🎉',canvas.width/2,160);
+      ctx.font='700 24px system-ui';
+      ctx.fillText('FINAL SCORE: '+Math.floor(totalScore),canvas.width/2,205);
+      ctx.font='18px system-ui';
+      ctx.fillText('You made it to the bell.',canvas.width/2,240);
+      ctx.textAlign='left';
+    }
+  }
+
+  function render(){
+    const level=currentLevel();
+    drawBackground(level);
+    drawBoss();
+    drawObstacles();
+    drawPlayer();
+    drawOverlay();
+  }
+
+  function loop(t){
+    const dt=Math.min(32,(t-lastTime)||16.67);
+    lastTime=t;
+    update(dt);
+    render();
+    raf=requestAnimationFrame(loop);
+  }
+
+  document.getElementById('jumpBtn').addEventListener('click',jump);
+  const duckBtn=document.getElementById('duckBtn');
+  duckBtn.addEventListener('pointerdown',()=>setDuck(true));
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>duckBtn.addEventListener(ev,()=>setDuck(false)));
+  document.getElementById('restartBtn').addEventListener('click',resetGame);
+
+  canvas.addEventListener('pointerdown',()=>{ jump(); });
+  canvas.addEventListener('pointermove',e=>{
+    // Horizontal touch movement is deliberately ignored; this keeps the runner stable.
+    e.preventDefault();
+  });
+
+  let touchStartY=null;
+  canvas.addEventListener('touchstart',e=>{
+    if(e.touches.length){touchStartY=e.touches[0].clientY;}
+  },{passive:true});
+  canvas.addEventListener('touchend',e=>{
+    if(touchStartY===null)return;
+    const y=e.changedTouches[0].clientY;
+    if(y-touchStartY>35){setDuck(true);setTimeout(()=>setDuck(false),220);}
+    touchStartY=null;
+  },{passive:true});
+
+  window.addEventListener('keydown',e=>{
+    if(e.code==='Space'||e.key==='ArrowUp'){e.preventDefault();jump();}
+    if(e.key==='ArrowDown'){e.preventDefault();setDuck(true);}
+  });
+  window.addEventListener('keyup',e=>{if(e.key==='ArrowDown')setDuck(false);});
+
+  if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    // Game remains playable; only the running animation becomes static.
+  }
+
+  resetGame();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
+</body>
+</html>
